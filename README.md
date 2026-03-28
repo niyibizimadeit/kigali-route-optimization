@@ -249,7 +249,7 @@ Data: ODbL (OpenStreetMap) + CC BY 4.0
 ## Author
 
 
-GitHub: [@your_username](https://github.com/niyibizimadeit)
+GitHub: [@niyibizimadeit](https://github.com/niyibizimadeit)
 Email: princeniyibizi4@gmail.com
 
 ---
