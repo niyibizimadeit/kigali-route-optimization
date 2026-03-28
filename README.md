@@ -10,11 +10,10 @@ Built for real-world e-commerce deployment in Rwanda and as a research contribut
 
 This project applies classical and modern combinatorial optimization to the problem of last-mile delivery in Kigali, Rwanda. Using freely available OpenStreetMap (OSM) data, it constructs a realistic weighted road graph, models a capacitated vehicle routing problem (CVRP) with Rwanda-specific constraints, and benchmarks multiple solvers — from hand-implemented algorithms to Google's OR-Tools.
 
-The project is structured to serve three simultaneous goals:
+The project is structured to serve two simultaneous goals:
 
 - **Research** — a paper-ready experimental framework with rigorous benchmarking
 - **Deployment** — a runnable solver that could be handed to a Kigali e-commerce operator today
-- **Portfolio** — clean, documented, reproducible code with a citable dataset
 
 ---
 
