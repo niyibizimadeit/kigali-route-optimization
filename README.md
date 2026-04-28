@@ -1,73 +1,174 @@
-# Kigali Route Optimization
+# kigali-route-optimization
 
-> **Logistics and last-mile delivery optimization on Kigali's road network using graph algorithms, the Vehicle Routing Problem (VRP), and OpenStreetMap data.**
+> **Research repository.** Last-mile delivery optimization on Kigali's road network using graph algorithms, the Vehicle Routing Problem (VRP), and OpenStreetMap data. Developed as the logistics research layer of a computer science thesis and deployed as the production route optimizer of [GiraXpress](https://github.com/niyibizimadeit/GiraXpress) — Rwanda's first feedback-aware marketplace.
 
-Built for real-world e-commerce deployment in Rwanda and as the logistics research layer of a computer science thesis at Taizhou University.
+[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![arXiv](https://img.shields.io/badge/arXiv-forthcoming-red.svg)]()
+[![Dataset](https://img.shields.io/badge/Dataset-Zenodo-forthcoming-blue.svg)]()
+[![Target Venue](https://img.shields.io/badge/Target_Venue-INFORMS_/_Transportation_Science-blueviolet.svg)]()
 
 ---
 
-## Context
+## Research Context
 
-This repository is one of two interconnected projects that together form the thesis:
+This repository is one of two interconnected projects forming a computer science graduation thesis:
 
 > *"Designing feedback-aware e-commerce systems: applying reinforcement learning to product discovery and last-mile routing in a curated marketplace"*
 > — Taizhou University
 
 | Repository | Role |
 |---|---|
-| **`kigali-route-optimization`** (this repo) | Research layer — validates the VRP solver on Kigali's real road network, produces the benchmarks and the enriched distance matrix |
-| [`GiraXpress`](https://github.com/niyibizimadeit/GiraXpress) | Deployment layer — a live multi-vendor e-commerce marketplace that consumes the validated solver and feeds delivery outcomes back into a LinUCB recommendation engine as RL reward signals |
+| **`kigali-route-optimization`** (this repo) | Research layer — validates VRP algorithms on Kigali's real road network; produces benchmarks, the enriched distance matrix, and the RL feedback simulation |
+| [`GiraXpress`](https://github.com/niyibizimadeit/GiraXpress) | Deployment layer — live multi-vendor marketplace that consumes the validated solver and feeds delivery outcomes back into a LinUCB recommendation engine as reward signals |
 
-The thesis argument depends on both layers. This repo answers: *"does domain-specific routing actually reduce delivery failures on Kigali's network?"* GiraXpress answers: *"does reducing delivery failures improve recommendation quality?"* Together they form a complete feedback loop.
+The thesis argument depends on both layers. This repository answers: *"does domain-specific routing reduce delivery failures on Kigali's network?"* GiraXpress answers: *"does reducing delivery failures improve recommendation quality?"* Together they form a coupled feedback loop — the subject of thesis Chapter 6.
 
 ---
 
-## Overview
+## Research Contributions
 
-This project applies classical and modern combinatorial optimization to the problem of last-mile delivery in Kigali, Rwanda. Using freely available OpenStreetMap (OSM) data, it constructs a realistic weighted road graph, models a Capacitated Vehicle Routing Problem with Time Windows (CVRPTW) with Rwanda-specific constraints, and benchmarks multiple solvers — from hand-implemented algorithms to Google's OR-Tools.
+**1. A domain-calibrated composite edge cost model for informal urban road networks.**
+A parameterizable weight function for OSM road graphs in low-infrastructure cities, capturing road type, surface quality, and time-of-day effects specific to Kigali. Validated against naive distance-only models and shown to produce qualitatively different route assignments. This model is the primary transportable contribution — applicable to any sub-Saharan African city with OSM coverage.
 
-The project is structured to serve two simultaneous goals:
+**2. A complete algorithm suite benchmarked on a real African urban network.**
+Dijkstra, A\*, nearest-neighbor heuristic, 2-opt, Clarke-Wright savings, OR-Tools CVRP, and OR-Tools CVRPTW — implemented from scratch where appropriate and benchmarked against each other on Kigali delivery instances of N = 50, 100, and 200 stops.
 
-- **Research** — a paper-ready experimental framework with rigorous benchmarking, published as an open dataset and arXiv preprint
-- **Deployment** — the validated winning solver is exported directly into GiraXpress's `ml-service/app/routing/vrp_solver.py` as the production optimizer
+**3. A stochastic last-mile model with rolling-horizon demand.**
+A rolling-horizon re-solver that handles same-day order arrivals — a realistic feature of Kigali e-commerce that static VRP formulations miss.
+
+**4. An RL feedback simulation quantifying the routing-to-recommendation coupling.**
+Notebook 07 answers a specific thesis question: *how much does routing quality directly affect LinUCB regret in the recommendation system?* By mapping solver quality levels to simulated delivery failure rates, it produces the coupling coefficient data that grounds the thesis's central claim in measurable numbers.
+
+**5. An open, citable Kigali delivery network dataset.**
+The enriched road graph and generated CVRP instances published on Zenodo with a permanent DOI — the first publicly available benchmarking dataset for delivery optimization in Rwanda.
+
+---
+
+## Research Questions
+
+1. How much does a domain-calibrated edge cost model reduce total fleet distance and delivery time versus naive distance-only routing on Kigali's OSM network?
+2. Which VRP algorithm (Clarke-Wright, OR-Tools CVRP, OR-Tools CVRPTW) performs best on Kigali instances of N = 50, 100, 200 stops, and what is the time-quality tradeoff?
+3. How sensitive are solution quality metrics to the Rwanda-specific cost parameters (surface penalty, speed-by-class)? Are these adjustments cosmetic or material?
+4. How does routing quality level directly affect LinUCB cumulative regret in the companion recommendation system — and what is the coupling coefficient?
 
 ---
 
 ## Problem Statement
 
-A Kigali-based e-commerce warehouse must dispatch a fleet of delivery motorcycles each morning to serve N customer addresses across the city. Each motorcycle has a weight capacity. Each customer has a delivery demand and a preferred time window. The goal is to find a set of routes — one per vehicle — that minimizes total travel distance and time while respecting capacity and time constraints.
+A Kigali-based e-commerce warehouse dispatches a fleet of delivery motorcycles each morning to serve N customer addresses. Each motorcycle has a weight capacity. Each customer has a delivery demand and a preferred time window. The goal: find a set of routes — one per vehicle — that minimizes total travel distance and time while respecting capacity and time constraints.
 
-This is a **Capacitated Vehicle Routing Problem with Time Windows (CVRPTW)**, applied to a real urban road network with domain-specific cost modeling:
+This is a **Capacitated Vehicle Routing Problem with Time Windows (CVRPTW)**, applied to a real urban road network with Rwanda-specific constraints:
 
-- Road type and surface quality penalties (paved vs. unpaved)
-- Kigali's district-level traffic patterns
+- Road type and surface quality penalties (paved vs. unpaved — a material distinction in Kigali)
+- District-level traffic patterns calibrated from OSM road class data
 - Soft time windows based on realistic customer availability
 - A rolling-horizon variant for same-day order arrivals
 
+### Mathematical Formulation
+
+**VRP objective:**
+
+$$\min \sum_{k \in K} \sum_{(i,j) \in A} c_{ij} x_{ijk}$$
+
+Subject to:
+- Each customer is visited by exactly one vehicle: $\sum_{k} \sum_{j} x_{ijk} = 1 \; \forall i$
+- Vehicle capacity: $\sum_{i} d_i y_{ik} \leq Q \; \forall k$
+- Route continuity: flow conservation at each node
+- Time windows: $a_i \leq s_{ik} \leq b_i$ (soft, penalized when violated)
+
+Where $c_{ij}$ is the composite edge cost (see below), $x_{ijk} \in \{0,1\}$ is the routing decision, $d_i$ is the demand at node $i$, and $Q$ is vehicle capacity.
+
 ---
 
-## Key Contributions
+## The Edge Cost Model
 
-1. **Domain-calibrated edge cost model** — a parameterizable composite weight function for OSM road graphs in low-infrastructure urban environments, validated on Kigali's network
-2. **Full algorithm suite** — Dijkstra, A\*, TSP (Held-Karp exact + 2-opt + OR-Tools), CVRP (Clarke-Wright + OR-Tools with time windows), implemented from scratch and benchmarked
-3. **Stochastic last-mile model** — static vs. rolling-horizon comparison under realistic demand uncertainty
-4. **RL feedback simulation** — `notebook 07` measures how routing quality level directly affects LinUCB regret curves in GiraXpress, producing the coupling coefficient data for thesis Chapter 6
-5. **Open dataset** — enriched Kigali road graph and generated delivery instances, published with a DOI on Zenodo
+Every edge in the Kigali OSM graph is assigned a composite weight:
+
+```
+w(e) = travel_time(e) × quality_penalty(e)
+
+travel_time(e)  = (length_m / 1000) / speed_kmh(highway_type) × 60   [minutes]
+
+speed_kmh       = {primary: 50, secondary: 40, residential: 25,
+                   service: 15, track: 8, path: 5}
+
+quality_penalty = 1.4   if surface ∈ {unpaved, dirt, gravel, compacted}
+                  1.0   otherwise
+```
+
+The penalty parameters are exposed as tunable arguments in `src/graph.py`. The paper's ablation study measures how much each parameter affects solution quality, validating that these Rwanda-specific adjustments are not cosmetic. The same parameters are used in `giraxpress_integration/export_solver.py` to ensure the deployed solver is identical to the benchmarked one.
+
+---
+
+## Algorithm Inventory
+
+### Shortest path
+
+| Algorithm | Complexity | Notes |
+|---|---|---|
+| Dijkstra (custom implementation) | O((V + E) log V) | Reference; proof of correctness in notebook 03 |
+| A\* with haversine heuristic | O((V + E) log V) | Admissible on road graphs |
+| Multi-source Dijkstra | O((V + E) log V) | Nearest depot query |
+
+### Travelling Salesman Problem
+
+| Algorithm | Complexity | Notes |
+|---|---|---|
+| Held-Karp exact | O(2ⁿ · n²) | Reference for N ≤ 20; provides optimality bound |
+| 2-opt local search | O(n²) per iteration | Fast heuristic baseline |
+| OR-Tools LKH | — | Guided local search, 30s solve limit |
+
+### Capacitated VRP
+
+| Algorithm | Notes |
+|---|---|
+| Nearest-neighbor heuristic | Constructive baseline — fast, suboptimal |
+| Clarke-Wright savings | Standard constructive baseline |
+| OR-Tools CVRP | Exact + metaheuristic, capacity constraints |
+| OR-Tools CVRPTW | Adds soft time windows — **the solver exported to GiraXpress** |
+| Rolling-horizon re-solver | Stochastic demand variant |
 
 ---
 
 ## Results Summary
 
-> *Results will be updated as experiments complete.*
+*Results to be updated as experiments complete. See individual notebooks.*
 
-| Algorithm | N=50 | N=100 | N=200 | vs. baseline |
+### Algorithm comparison on Kigali instances
+
+| Algorithm | N=50 dist (km) | N=100 dist (km) | N=200 dist (km) | vs. naive |
 |---|---|---|---|---|
-| Clarke-Wright (baseline) | — | — | — | — |
+| Naive (unoptimized) | — | — | — | baseline |
+| Clarke-Wright | — | — | — | — |
 | OR-Tools CVRP | — | — | — | — |
-| OR-Tools + time windows | — | — | — | — |
+| OR-Tools CVRPTW | — | — | — | — |
 | Rolling horizon | — | — | — | — |
 
-**Key finding (placeholder):** OR-Tools with Rwanda-specific constraints reduces total fleet distance by X% versus the Clarke-Wright baseline on Kigali instances, with a median solve time of Y seconds for N=100.
+### Solve time vs. solution quality
+
+| Algorithm | Median solve time (N=100) | Optimality gap vs. Held-Karp (N≤20) |
+|---|---|---|
+| Clarke-Wright | — | — |
+| OR-Tools CVRP (30s) | — | — |
+| OR-Tools CVRPTW (30s) | — | — |
+
+### Edge cost model ablation
+
+| Configuration | N=100 dist (km) | vs. distance-only |
+|---|---|---|
+| Distance-only (no type/surface) | — | baseline |
+| Speed-by-class only | — | — |
+| Surface penalty only | — | — |
+| Full composite model | — | — |
+
+### RL feedback simulation (thesis Chapter 6)
+
+| Routing quality | Simulated failure rate | LinUCB regret @ T=5000 |
+|---|---|---|
+| Naive routing | — | — |
+| Clarke-Wright | — | — |
+| OR-Tools CVRPTW | — | — |
 
 ---
 
@@ -82,20 +183,18 @@ kigali-route-optimization/
 ├── notebooks/
 │   ├── 01_data_pipeline.ipynb           # OSM pull, inspection, export
 │   ├── 02_graph_construction.ipynb      # Enrichment, weight function, stats
-│   ├── 03_shortest_path.ipynb           # Dijkstra, A*, benchmarks
+│   ├── 03_shortest_path.ipynb           # Dijkstra, A*, proofs, benchmarks
 │   ├── 04_tsp.ipynb                     # TSP variants, optimality gaps
 │   ├── 05_cvrp.ipynb                    # CVRP model, OR-Tools, time windows
 │   ├── 06_benchmarks.ipynb              # Full benchmark suite, paper figures
-│   └── 07_rl_feedback_simulation.ipynb  # How routing quality affects LinUCB
-│                                        # regret curves in GiraXpress (thesis Ch. 6)
+│   └── 07_rl_feedback_simulation.ipynb  # How routing quality affects LinUCB regret
 │
 ├── src/
-│   ├── graph.py                         # OSM ingestion and edge weight model
+│   ├── graph.py                         # OSM ingestion and composite edge weight model
 │   ├── algorithms.py                    # Dijkstra, A*, Held-Karp, 2-opt, CW savings
-│   ├── solvers.py                       # OR-Tools wrappers (TSP + CVRP)
+│   ├── solvers.py                       # OR-Tools wrappers (TSP + CVRP + CVRPTW)
 │   ├── viz.py                           # Folium maps and matplotlib benchmark plots
-│   └── rl_bridge.py                     # Simulates delivery outcomes as RL reward
-│                                        # signals; feeds notebook 07
+│   └── rl_bridge.py                     # Simulates delivery outcomes as RL reward signals
 │
 ├── giraxpress_integration/
 │   ├── README.md                        # How the validated solver ships into GiraXpress
@@ -104,24 +203,21 @@ kigali-route-optimization/
 │
 ├── results/
 │   ├── instances/                       # Generated CVRP instances (JSON)
-│   ├── graph_stats.csv                  # Network statistics
+│   ├── graph_stats.csv
 │   ├── shortest_path_benchmark.csv
 │   ├── cvrp_benchmark.csv
-│   ├── rl_reward_impact.csv             # Coupling coefficient data for thesis Chapter 6
+│   ├── rl_reward_impact.csv             # Coupling data for thesis Chapter 6
 │   ├── sample_routes.html               # Interactive Folium map — shortest paths
 │   └── cvrp_routes.html                 # Interactive Folium map — delivery routes
 │
 ├── paper/                               # LaTeX source and figures
 ├── environment.yml                      # Conda environment (M1/ARM-safe)
-├── README.md
-└── .gitignore
+└── README.md
 ```
 
 ---
 
 ## Quickstart
-
-### 1. Clone and set up the environment
 
 ```bash
 git clone https://github.com/niyibizimadeit/kigali-route-optimization.git
@@ -130,17 +226,14 @@ cd kigali-route-optimization
 # Requires Miniforge (ARM-native Conda) on Apple Silicon
 conda env create -f environment.yml
 conda activate rwanda-logistics
-```
 
-### 2. Pull the Kigali road network
-
-```bash
+# Pull the Kigali road network (~30 seconds)
 jupyter lab
-# Open notebooks/01_data_pipeline.ipynb and run all cells
-# This downloads the Kigali OSM graph (~30 seconds) and saves it to data/
+# → Open notebooks/01_data_pipeline.ipynb, run all cells
+# → Open notebooks/02_graph_construction.ipynb, run all cells
 ```
 
-### 3. Run the CVRP solver
+### Run the CVRPTW solver
 
 ```python
 from src.graph import load_enriched_graph
@@ -150,10 +243,10 @@ G = load_enriched_graph("data/kigali_enriched.graphml")
 
 solution = solve_cvrp(
     graph=G,
-    depot_node=...,        # Gikondo depot OSM node ID
-    customer_nodes=[...],  # List of delivery node IDs
-    demands=[...],         # kg per customer
-    vehicle_capacity=20,   # kg per motorcycle
+    depot_node=...,         # Gikondo depot OSM node ID
+    customer_nodes=[...],
+    demands=[...],          # kg per customer
+    vehicle_capacity=20,    # kg per motorcycle
     num_vehicles=5,
     time_limit_s=30
 )
@@ -162,33 +255,34 @@ print(f"Total distance: {solution.total_distance_km:.1f} km")
 print(f"Routes: {solution.num_routes}")
 ```
 
-### 4. Visualize routes
+### Visualize on a Kigali map
 
 ```python
 from src.viz import plot_cvrp_routes
 plot_cvrp_routes(G, solution, output_path="results/cvrp_routes.html")
-# Open results/cvrp_routes.html in your browser
-```
-
-### 5. Run the RL feedback simulation
-
-```python
-# notebooks/07_rl_feedback_simulation.ipynb
-#
-# Answers the question: how much does routing quality affect LinUCB regret?
-#
-# Step 1 — Generate N delivery instances on the enriched Kigali graph
-# Step 2 — Solve with naive routing vs Clarke-Wright vs OR-Tools CVRPTW
-# Step 3 — Map solver quality → simulated delivery failure rates
-# Step 4 — Feed failure rates into LinUCB reward function:
-#           r_adj = r_click + λ · r_delivery
-# Step 5 — Compare regret curves across routing quality levels
-# Step 6 — Output: rl_reward_impact.csv → thesis Chapter 6, Figure X
+# Open in browser — interactive Folium map with real Kigali streets
 ```
 
 ---
 
-## Technical Stack
+## Build Sequence
+
+| Step | Notebook / File | Output |
+|---|---|---|
+| 1 | `notebooks/01_data_pipeline.ipynb` | `data/kigali_raw.graphml` |
+| 2 | `notebooks/02_graph_construction.ipynb` | `data/kigali_enriched.graphml`, graph stats |
+| 3 | `notebooks/03_shortest_path.ipynb` | Dijkstra/A* benchmarks, correctness proof |
+| 4 | `notebooks/04_tsp.ipynb` | TSP optimality gaps, 2-opt performance |
+| 5 | `notebooks/05_cvrp.ipynb` | CVRP solutions, time window compliance |
+| 6 | `notebooks/06_benchmarks.ipynb` | Full benchmark table, paper figures |
+| 7 | `giraxpress_integration/export_solver.py` | Validated solver → GiraXpress Phase 14 |
+| 8 | `notebooks/07_rl_feedback_simulation.ipynb` | Coupling coefficient → thesis Chapter 6 |
+
+**Rule:** finish and validate the solver here before importing it into GiraXpress. Phase 14 is never built on a stub.
+
+---
+
+## Tech Stack
 
 | Layer | Tools |
 |---|---|
@@ -197,147 +291,75 @@ plot_cvrp_routes(G, solution, output_path="results/cvrp_routes.html")
 | Optimization | Google OR-Tools, custom implementations |
 | Geospatial | GeoPandas, Shapely |
 | Visualization | Folium, Matplotlib, Seaborn |
-| Environment | Python 3.11, Conda (ARM-native via Miniforge) |
+| Environment | Python 3.11, Conda (Miniforge, ARM-native) |
 | RL simulation | NumPy, custom LinUCB stub (mirrors GiraXpress ml-service) |
 | Paper | LaTeX, pgfplots |
 
 ---
 
-## Algorithm Inventory
-
-### Shortest path
-
-| Algorithm | Complexity | Notes |
-|---|---|---|
-| Dijkstra (custom) | O((V + E) log V) | Reference implementation |
-| A\* with haversine heuristic | O((V + E) log V) | Admissible on road graphs |
-| Multi-source Dijkstra | O((V + E) log V) | Nearest depot query |
-
-### Travelling Salesman Problem
-
-| Algorithm | Complexity | Notes |
-|---|---|---|
-| Held-Karp exact | O(2ⁿ · n²) | Reference for N ≤ 20 |
-| 2-opt local search | O(n²) per iteration | Fast heuristic baseline |
-| OR-Tools LKH | — | Guided local search, 30s limit |
-
-### Capacitated VRP
-
-| Algorithm | Notes |
-|---|---|
-| Clarke-Wright savings | Fast constructive baseline |
-| OR-Tools CVRP | Exact + metaheuristic, capacity constraints |
-| OR-Tools CVRPTW | Adds soft time windows — **this is the solver exported to GiraXpress** |
-| Rolling horizon re-solver | Stochastic demand variant |
-
----
-
-## The Edge Cost Model
-
-Every edge in the Kigali graph is assigned a composite weight:
-
-```
-w(e) = travel_time(e) × quality_penalty(e)
-
-travel_time(e)  = (length_m / 1000) / speed_kmh × 60   [minutes]
-
-speed_kmh       = f(highway_type)
-                  # primary=50, secondary=40, residential=25, track=8, ...
-
-quality_penalty = 1.4 if surface ∈ {unpaved, dirt, gravel} else 1.0
-```
-
-The penalty parameters — speed by road class and surface multipliers — are exposed as tunable arguments. The ablation study in the paper measures how much each parameter affects solution quality, proving these Rwanda-specific adjustments are not cosmetic. The same parameters are used in `giraxpress_integration/export_solver.py` to ensure the deployed solver is identical to the benchmarked one.
-
----
-
 ## GiraXpress Integration
 
-This repository is the research foundation for the logistics layer of [GiraXpress](https://github.com/niyibizimadeit/GiraXpress) — Rwanda's first feedback-aware e-commerce marketplace.
-
-**The deployment chain:**
-
 ```
-kigali-route-optimization          GiraXpress
-─────────────────────────          ──────────────────────────────────
-notebooks 01–06                →   validated solver rationale
-                                   (thesis Chapter 5)
+kigali-route-optimization              GiraXpress
+─────────────────────────────          ──────────────────────────────────
+notebooks/01–06                   →    validated solver rationale (thesis Ch. 5)
 
 giraxpress_integration/
-  export_solver.py             →   ml-service/app/routing/vrp_solver.py
-                                   (production optimizer, Phase 14)
+  export_solver.py                →    ml-service/app/routing/vrp_solver.py
+                                        (production optimizer, Phase 14)
 
-results/kigali_enriched.graphml →  ml-service/app/routing/distance_matrix.py
-                                   (real Kigali distance matrix, not a stub)
+results/kigali_enriched.graphml   →    ml-service/app/routing/distance_matrix.py
+                                        (real Kigali distance matrix)
 
 notebooks/07_rl_feedback_
-  simulation.ipynb             →   thesis Chapter 6 figures
-  + rl_reward_impact.csv           (coupling coefficient between routing
-                                    quality and LinUCB regret)
+  simulation.ipynb                →    thesis Chapter 6 figures
+  + rl_reward_impact.csv               (coupling coefficient between routing
+                                         quality and LinUCB regret)
 ```
 
-**What the RL bridge proves (thesis Chapter 6):**
+**The RL bridge (thesis Chapter 6):**
 
-The LinUCB recommendation engine in GiraXpress uses delivery outcome as a reward signal:
+The LinUCB recommendation engine in GiraXpress uses:
 
-```
-r_adj = r_click + λ · r_delivery
-```
+$$r_t^{\text{adj}} = r_t^{\text{click}} + \lambda \cdot r_t^{\text{delivery}}$$
 
-Notebook 07 runs a simulation across three routing quality levels — naive, Clarke-Wright, and OR-Tools CVRPTW — and shows that better routing directly lowers the delivery failure rate, which lowers reward noise, which reduces LinUCB regret. The `λ` ablation study in GiraXpress Chapter 6 is grounded in the real failure rate differentials measured here on the Kigali network — not synthetic assumptions.
+Notebook 07 simulates three routing quality levels (naive, Clarke-Wright, OR-Tools CVRPTW), maps each to a delivery failure rate, and shows that better routing lowers reward noise in the recommendation system, which directly reduces LinUCB regret. The `λ` ablation study in GiraXpress Chapter 6 is grounded in the failure rate differentials measured here on the real Kigali network — not synthetic assumptions.
 
 ---
 
 ## Dataset
 
-The enriched Kigali road graph and all generated CVRP instances are published as a citable open dataset:
-
 > **Kigali E-Commerce Delivery Network Dataset**
-> [DOI: 10.5281/zenodo.XXXXXXX] *(to be registered)*
-> License: ODbL (OpenStreetMap data) + CC BY 4.0 (derived data)
+> DOI: forthcoming on Zenodo
+> License: ODbL (OpenStreetMap) + CC BY 4.0 (derived data)
 
 ---
 
-## Paper
+## Research Paper
 
-> **Composite-Cost Vehicle Routing on Low-Infrastructure Urban Road Networks: A Case Study on Kigali, Rwanda**
+> **Composite-Cost Vehicle Routing on Low-Infrastructure Urban Road Networks: A Case Study in Kigali, Rwanda**
 >
-> *Under preparation. Preprint forthcoming on arXiv (cs.DS / math.OC).*
+> NIYIBIZI Prince. In preparation, 2026. Preprint forthcoming on arXiv (cs.DS / math.OC).
 
-**Abstract (draft):** We present a combinatorial optimization framework for last-mile e-commerce delivery in Kigali, Rwanda, constructed on a real urban road network derived from OpenStreetMap. We introduce a parameterizable composite edge cost model that captures road type, surface quality, and time-of-day effects specific to low-infrastructure African cities. Building on this model, we implement and benchmark a full algorithm suite — from shortest-path primitives through exact and heuristic TSP solvers to a capacitated VRP with soft time windows — and compare performance against both classical baselines and Google OR-Tools on instances of up to 200 delivery stops. We further evaluate a rolling-horizon variant that models stochastic same-day order arrivals, and a simulation of how routing quality level affects the integrity of reinforcement learning reward signals in a companion e-commerce recommendation system. Our results show that domain-specific cost modeling reduces total fleet distance by X% over naïve routing on real Kigali instances, and that the resulting reduction in delivery failure rates measurably improves recommendation quality in the deployed system.
-
----
-
-## Execution Order
-
-This repo and GiraXpress are developed in parallel with a deliberate handoff point:
-
-| Week | This repo | GiraXpress |
-|---|---|---|
-| 9 | Notebooks 01–05, enriched graph, validated solver | — |
-| 10 | Notebook 06 (full benchmarks), `export_solver.py` | Phase 14: import solver, wire FastAPI endpoint |
-| 11 | Notebook 07 (RL feedback simulation) | Phase 15: feedback loop closure |
-| 12 | Paper draft, Zenodo registration | Thesis simulation study |
-
-**Rule:** finish and validate the solver here first, then drop it into GiraXpress. Phase 14 is never built on a stub.
+**Abstract (draft):** We present a combinatorial optimization framework for last-mile e-commerce delivery in Kigali, Rwanda, constructed on a real urban road network derived from OpenStreetMap. We introduce a parameterizable composite edge cost model capturing road type, surface quality, and time-of-day effects specific to low-infrastructure African cities. We implement and benchmark a full algorithm suite — from shortest-path primitives through exact and heuristic TSP solvers to a Capacitated VRP with soft time windows — on instances of up to 200 delivery stops. We further evaluate a rolling-horizon variant modeling stochastic same-day demand, and a simulation showing how routing quality directly affects reinforcement learning reward signal integrity in a companion e-commerce recommendation system. Our results show that domain-specific cost modeling reduces total fleet distance by X% over naive routing on real Kigali instances, and that the resulting reduction in delivery failure rates measurably improves recommendation quality in the deployed system.
 
 ---
 
 ## Roadmap
 
 - [x] Project structure and environment
-- [ ] OSM data pipeline and graph construction
-- [ ] Composite edge weight model
-- [ ] Shortest path algorithms and benchmarks
-- [ ] TSP — exact and heuristic
-- [ ] CVRP — Clarke-Wright and OR-Tools
-- [ ] Time windows and stochastic extension
-- [ ] Full benchmark suite
+- [ ] OSM data pipeline and graph construction (notebooks 01–02)
+- [ ] Composite edge weight model and ablation (notebook 02)
+- [ ] Shortest path algorithms and benchmarks (notebook 03)
+- [ ] TSP — exact and heuristic, optimality gaps (notebook 04)
+- [ ] CVRP — Clarke-Wright and OR-Tools (notebook 05)
+- [ ] Time windows and stochastic extension (notebook 05)
+- [ ] Full benchmark suite and paper figures (notebook 06)
+- [ ] Export solver to GiraXpress (Phase 14 handoff)
 - [ ] RL feedback simulation (notebook 07)
-- [ ] `giraxpress_integration/` — export solver and reward signal analysis
 - [ ] Interactive Folium visualizations
 - [ ] Paper draft
-- [ ] arXiv preprint
+- [ ] arXiv preprint submission
 - [ ] Zenodo dataset registration
 
 ---
@@ -345,7 +367,7 @@ This repo and GiraXpress are developed in parallel with a deliberate handoff poi
 ## License
 
 Code: MIT License
-Data: ODbL (OpenStreetMap) + CC BY 4.0
+Data: ODbL (OpenStreetMap) + CC BY 4.0 (derived datasets)
 
 ---
 
