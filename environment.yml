@@ -1,17 +1,22 @@
 name: rwanda-logistics
 channels:
   - conda-forge
+  - defaults
 dependencies:
   - python=3.11
-  - osmnx=1.9
-  - networkx=3.2
-  - geopandas=0.14
-  - folium=0.15
-  - scipy=1.11
-  - numpy=1.26
-  - matplotlib=3.8
-  - seaborn=0.13
-  - jupyterlab=4.0
-  - pip:
-    - ortools==9.8.3296
-    - numba==0.58
+  - osmnx>=1.9.0
+  - networkx>=3.2
+  - geopandas>=0.14
+  - shapely>=2.0
+  - folium>=0.15
+  - ortools>=9.8
+  - scipy>=1.12
+  - numpy>=1.26
+  - matplotlib>=3.8
+  - seaborn>=0.13
+  - jupyterlab>=4.1
+  - ipykernel>=6.29
+  - pandas>=2.2
+  - requests>=2.31
+  - tqdm>=4.66
+  - pyproj>=3.6
