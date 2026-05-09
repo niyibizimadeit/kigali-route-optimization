@@ -9,7 +9,6 @@ dependencies:
   - geopandas>=0.14
   - shapely>=2.0
   - folium>=0.15
-  - ortools>=9.8
   - scipy>=1.12
   - numpy>=1.26
   - matplotlib>=3.8
@@ -20,3 +19,6 @@ dependencies:
   - requests>=2.31
   - tqdm>=4.66
   - pyproj>=3.6
+  - pip
+  - pip:
+    - ortools>=9.8

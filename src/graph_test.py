@@ -1,7 +1,7 @@
 """
 graph_test.py — Phase 1 validation script.
 
-Run with:
+Run from the repo root with:
     python src/graph_test.py
 
 Must print 'all checks passed' without error. If any check fails,
@@ -9,6 +9,11 @@ it prints the failing check name and exits with a non-zero code.
 """
 
 import sys
+import os
+
+# Ensure repo root is on the path so 'from src.x import y' works
+# regardless of how the script is invoked.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def check(name: str, condition: bool) -> None:

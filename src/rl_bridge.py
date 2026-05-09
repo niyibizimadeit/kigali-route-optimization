@@ -10,6 +10,7 @@ These two files must stay in sync — they define the same feedback loop.
 """
 
 from dataclasses import dataclass
+from typing import Optional
 
 import numpy as np
 
@@ -117,9 +118,3 @@ def compute_linucb_regret(
         RegretResult with cumulative_regret array and summary stats.
     """
     pass
-
-
-# ---------------------------------------------------------------------------
-# Type hint fix (Optional not imported at top to keep stub readable)
-# ---------------------------------------------------------------------------
-from typing import Optional
