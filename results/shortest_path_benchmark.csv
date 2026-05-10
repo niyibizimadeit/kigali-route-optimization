@@ -1,0 +1,4 @@
+algorithm,n_pairs,mean_ms,median_ms,p95_ms,min_ms,max_ms
+custom_dijkstra,20,31.6126,37.7187,48.2525,2.985,51.8757
+custom_astar,20,14.7641,13.3679,31.8796,1.0198,36.2919
+networkx_dijkstra,20,19.8595,23.8994,30.0293,1.7055,31.4071

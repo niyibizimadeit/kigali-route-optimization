@@ -201,6 +201,11 @@ def load_enriched_graph(
         )
     print(f"Loading enriched graph from: {path}")
     G = ox.load_graphml(path)
+    # GraphML stores all attributes as strings. Cast composite_weight back to float
+    # so every caller gets numeric values — NetworkX weight functions require this.
+    for u, v, k, d in G.edges(keys=True, data=True):
+        if "composite_weight" in d:
+            G[u][v][k]["composite_weight"] = float(d["composite_weight"])
     print(f"Loaded — {len(G.nodes):,} nodes, {len(G.edges):,} edges")
     return G
 
