@@ -9,12 +9,19 @@ Composite edge weight formula:
     w(e) = travel_time(e) × quality_penalty(e)
     travel_time(e) = (length_m / 1000) / speed_kmh(highway_type) × 60  [minutes]
     quality_penalty = QUALITY_PENALTY_UNPAVED if surface is unpaved, else QUALITY_PENALTY_PAVED
+
+Note on coordinate system:
+    The graph is kept in WGS84 (lat/lon). Node 'x' = longitude, 'y' = latitude.
+    Edge 'length' attributes are in metres (OSMnx always computes these).
+    We do not project to UTM — 'length' gives us metric distances directly,
+    and WGS84 coordinates are needed for Folium map rendering.
 """
 
 import os
 from typing import Optional
 
 import networkx as nx
+import numpy as np
 import osmnx as ox
 
 # ---------------------------------------------------------------------------
@@ -70,14 +77,32 @@ def load_raw_graph(
     If output_path already exists and force_refresh is False, loads from disk
     instead of hitting the OSM API again. Pass force_refresh=True to re-pull.
 
+    The graph is kept in WGS84 (lat/lon). Node attributes 'x' (longitude) and
+    'y' (latitude) are preserved for Folium map rendering. Edge 'length'
+    attributes are in metres — used by enrich_graph() for travel time calculation.
+
     Args:
         output_path: Where to save/load the raw graphml file.
         force_refresh: If True, always re-pull from OSM even if file exists.
 
     Returns:
-        NetworkX MultiDiGraph projected to UTM (metric coordinates).
+        NetworkX MultiDiGraph in WGS84 with OSM edge attributes.
     """
-    pass
+    if os.path.exists(output_path) and not force_refresh:
+        print(f"Loading raw graph from disk: {output_path}")
+        G = ox.load_graphml(output_path)
+        print(f"Loaded — {len(G.nodes):,} nodes, {len(G.edges):,} edges")
+        return G
+
+    print("Pulling Kigali road network from OpenStreetMap...")
+    G = ox.graph_from_place("Kigali, Rwanda", network_type="drive")
+
+    dir_name = os.path.dirname(output_path)
+    if dir_name:
+        os.makedirs(dir_name, exist_ok=True)
+    ox.save_graphml(G, output_path)
+    print(f"Saved to {output_path} — {len(G.nodes):,} nodes, {len(G.edges):,} edges")
+    return G
 
 
 def enrich_graph(
@@ -158,7 +183,7 @@ def build_distance_matrix(
     G: nx.MultiDiGraph,
     node_ids: list[int],
     weight: str = "composite_weight",
-) -> "np.ndarray":
+) -> np.ndarray:
     """
     Build an N×N matrix of shortest-path costs between a list of nodes.
 
