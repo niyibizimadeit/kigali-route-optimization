@@ -126,7 +126,38 @@ def enrich_graph(
         The same graph with 'composite_weight' added to all edges (mutates in place,
         also returns for chaining).
     """
-    pass
+    # Resolve active constants — merge defaults with any overrides
+    speed_map   = (params or {}).get("SPEED_BY_HIGHWAY",       SPEED_BY_HIGHWAY)
+    unpaved_set = (params or {}).get("UNPAVED_SURFACES",        UNPAVED_SURFACES)
+    pen_unpaved = (params or {}).get("QUALITY_PENALTY_UNPAVED", QUALITY_PENALTY_UNPAVED)
+    pen_paved   = (params or {}).get("QUALITY_PENALTY_PAVED",   QUALITY_PENALTY_PAVED)
+
+    default_speed = speed_map.get("default", 20)
+
+    for u, v, key, data in G.edges(keys=True, data=True):
+        # --- highway type → speed ---
+        hw = data.get("highway", "default")
+        if isinstance(hw, list):
+            hw = hw[0]          # OSM sometimes stores a list; take the first
+        speed_kmh = speed_map.get(hw, default_speed)
+
+        # --- length → travel time ---
+        length_m = data.get("length", 0)
+        travel_time_min = (length_m / 1000.0) / speed_kmh * 60.0
+
+        # --- surface → quality penalty ---
+        surface = data.get("surface", None)
+        if isinstance(surface, list):
+            surface = surface[0]
+        if surface is not None and surface.lower() in unpaved_set:
+            quality_penalty = pen_unpaved
+        else:
+            quality_penalty = pen_paved
+
+        # --- composite weight ---
+        G[u][v][key]["composite_weight"] = travel_time_min * quality_penalty
+
+    return G
 
 
 def save_enriched_graph(
@@ -140,7 +171,11 @@ def save_enriched_graph(
         G: Enriched graph (composite_weight must already be set on all edges).
         output_path: Destination path.
     """
-    pass
+    dir_name = os.path.dirname(output_path)
+    if dir_name:
+        os.makedirs(dir_name, exist_ok=True)
+    ox.save_graphml(G, output_path)
+    print(f"Saved enriched graph to {output_path}")
 
 
 def load_enriched_graph(
@@ -159,7 +194,15 @@ def load_enriched_graph(
     Returns:
         Enriched NetworkX MultiDiGraph.
     """
-    pass
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            f"Enriched graph not found at '{path}'. "
+            "Run notebooks/02_graph_construction.ipynb first to generate it."
+        )
+    print(f"Loading enriched graph from: {path}")
+    G = ox.load_graphml(path)
+    print(f"Loaded — {len(G.nodes):,} nodes, {len(G.edges):,} edges")
+    return G
 
 
 def get_node_coordinates(
@@ -176,7 +219,8 @@ def get_node_coordinates(
     Returns:
         (latitude, longitude) as floats.
     """
-    pass
+    node = G.nodes[node_id]
+    return float(node["y"]), float(node["x"])
 
 
 def build_distance_matrix(
@@ -198,4 +242,22 @@ def build_distance_matrix(
     Returns:
         numpy ndarray of shape (N, N).
     """
-    pass
+    n = len(node_ids)
+    matrix = np.full((n, n), fill_value=np.inf)
+    np.fill_diagonal(matrix, 0.0)
+
+    for i, source in enumerate(node_ids):
+        try:
+            lengths = nx.single_source_dijkstra_path_length(
+                G, source, weight=weight
+            )
+            for j, target in enumerate(node_ids):
+                if i == j:
+                    continue
+                if target in lengths:
+                    matrix[i][j] = lengths[target]
+        except nx.NodeNotFound:
+            # Leave row as inf if source not in graph
+            pass
+
+    return matrix
