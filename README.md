@@ -1,4 +1,4 @@
-#    kigali-route-optimization
+#  aa  kigali-route-optimization
 
 > **Research repository.** Last-mile delivery optimization on Kigali's road network using graph algorithms, the Vehicle Routing Problem (VRP), and OpenStreetMap data. Developed as the logistics research layer of a computer science thesis and deployed as the production route optimizer of [GiraXpress](https://github.com/niyibizimadeit/GiraXpress) — Rwanda's first feedback-aware marketplace.
 
