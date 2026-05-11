@@ -1,0 +1,4 @@
+config,total_dist,n_routes,vs_distance_only_pct
+distance-only,12388.80803643354,5,0.0
+speed-class-only,353.5196826648751,5,-97.1464592749744
+full-composite,353.5196826648751,5,-97.1464592749744
