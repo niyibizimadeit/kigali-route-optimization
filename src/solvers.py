@@ -193,6 +193,7 @@ def solve_cvrp(
     vehicle_capacity: float,
     num_vehicles: int,
     time_limit_s: int = 30,
+    dist_matrix: Optional[np.ndarray] = None,
 ) -> CVRPSolution:
     """
     OR-Tools CVRP solver with capacity constraints.
@@ -226,7 +227,10 @@ def solve_cvrp(
     t0 = time.time()
 
     all_nodes = [depot_node] + customer_nodes
-    matrix = build_distance_matrix(graph, all_nodes, weight="composite_weight")
+    if dist_matrix is not None:
+        matrix = dist_matrix
+    else:
+        matrix = build_distance_matrix(graph, all_nodes, weight="composite_weight")
     # Replace inf with a large finite penalty so OR-Tools can handle it
     max_finite = matrix[matrix != np.inf].max() * 10 if (matrix != np.inf).any() else 1e6
     matrix = np.where(matrix == np.inf, max_finite, matrix)
@@ -254,6 +258,11 @@ def solve_cvrp(
         demand_cb, 0, [int_capacity] * num_vehicles, True, "Capacity"
     )
 
+    # Make every customer node mandatory — without this OR-Tools drops
+    # all customers to achieve cost=0 (they are optional by default)
+    for i in range(1, n):
+        routing.AddDisjunction([manager.NodeToIndex(i)], 10 * int(max_finite * SCALE))
+
     search_params = cp.DefaultRoutingSearchParameters()
     search_params.first_solution_strategy = enums.FirstSolutionStrategy.PATH_CHEAPEST_ARC
     search_params.local_search_metaheuristic = enums.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
@@ -276,14 +285,12 @@ def solve_cvrp(
                 idx = solution.Value(routing.NextVar(idx))
             if route:
                 routes.append(route)
-        # Compute actual distance
         for route in routes:
             total_dist += matrix[0][route[0]]
             for i in range(len(route) - 1):
                 total_dist += matrix[route[i]][route[i+1]]
             total_dist += matrix[route[-1]][0]
     else:
-        # Fallback: naive assignment
         fallback = naive_assignment(list(range(1, n)), num_vehicles)
         routes = fallback.routes
 
@@ -310,6 +317,7 @@ def solve_cvrptw(
     num_vehicles: int,
     time_windows: list[tuple[float, float]],
     time_limit_s: int = 30,
+    dist_matrix: Optional[np.ndarray] = None,
 ) -> CVRPSolution:
     """
     OR-Tools CVRPTW solver with soft time windows.
@@ -352,7 +360,10 @@ def solve_cvrptw(
     t0 = time.time()
 
     all_nodes = [depot_node] + customer_nodes
-    matrix = build_distance_matrix(graph, all_nodes, weight="composite_weight")
+    if dist_matrix is not None:
+        matrix = dist_matrix
+    else:
+        matrix = build_distance_matrix(graph, all_nodes, weight="composite_weight")
     max_finite = matrix[matrix != np.inf].max() * 10 if (matrix != np.inf).any() else 1e6
     matrix = np.where(matrix == np.inf, max_finite, matrix)
 
@@ -386,7 +397,7 @@ def solve_cvrptw(
     )
 
     # Time dimension for soft windows
-    routing.AddDimension(transit_cb, int(60 * SCALE), int(24 * 60 * SCALE), True, "Time")
+    routing.AddDimension(transit_cb, int(24 * 60 * SCALE), int(24 * 60 * SCALE), True, "Time")
     time_dim = routing.GetDimensionOrDie("Time")
 
     tw_violation_count = 0
@@ -397,6 +408,13 @@ def solve_cvrptw(
         early, late = int_windows[i]
         time_dim.SetCumulVarSoftLowerBound(idx, early, PENALTY)
         time_dim.SetCumulVarSoftUpperBound(idx, late,  PENALTY)
+
+    # Make every customer node mandatory.
+    # Penalty must be large enough that skipping any node is never cheaper
+    # than serving it. Use a hard floor independent of SCALE.
+    mandatory_penalty = max(10 * int(max_finite * SCALE), 10_000_000)
+    for i in range(1, n):
+        routing.AddDisjunction([manager.NodeToIndex(i)], mandatory_penalty)
 
     search_params = cp.DefaultRoutingSearchParameters()
     search_params.first_solution_strategy = enums.FirstSolutionStrategy.PATH_CHEAPEST_ARC
