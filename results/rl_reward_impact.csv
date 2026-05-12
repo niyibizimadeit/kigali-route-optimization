@@ -1,0 +1,4 @@
+routing_algorithm,failure_rate,final_regret_T5000,convergence_step,optimal_lambda,coupling_coeff
+Naive routing,0.5432,7010.2935,5000,0.2,8065.3327
+Clarke-Wright,0.1294,4594.8942,5000,0.2,8065.3327
+OR-Tools CVRPTW,0.05,2493.1917,5000,0.2,8065.3327
