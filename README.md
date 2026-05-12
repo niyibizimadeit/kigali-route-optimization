@@ -133,44 +133,51 @@ The penalty parameters are exposed as tunable arguments in `src/graph.py`. The p
 
 ## Results Summary
 
-*Results to be updated as experiments complete. See individual notebooks.*
-
 ### Algorithm comparison on Kigali instances
 
-| Algorithm | N=50 dist (km) | N=100 dist (km) | N=200 dist (km) | vs. naive |
+Note: distances are in composite-weight minutes (travel time on Kigali road network).
+
+| Algorithm | N=50 | N=100 | N=200 | vs. naive (N=50) |
 |---|---|---|---|---|
-| Naive (unoptimized) | — | — | — | baseline |
-| Clarke-Wright | — | — | — | — |
-| OR-Tools CVRP | — | — | — | — |
-| OR-Tools CVRPTW | — | — | — | — |
+| Naive (unoptimized) | 1042.0 | 2412.7 | 4377.9 | baseline |
+| Clarke-Wright | 498.4 | 925.7 | 1578.2 | -52.2% |
+| OR-Tools CVRP | 394.1 | 353.5 | 256.5 | -62.2% |
+| OR-Tools CVRPTW | 443.0 | 431.9 | 268.1 | -57.5% |
 | Rolling horizon | — | — | — | — |
 
 ### Solve time vs. solution quality
 
 | Algorithm | Median solve time (N=100) | Optimality gap vs. Held-Karp (N≤20) |
 |---|---|---|
-| Clarke-Wright | — | — |
-| OR-Tools CVRP (30s) | — | — |
-| OR-Tools CVRPTW (30s) | — | — |
+| Clarke-Wright | 0.014s | N/A (CVRP heuristic) |
+| OR-Tools CVRP (30s) | 30.002s | 0.00% (N=15), 0.00% (N=20) |
+| OR-Tools CVRPTW (30s) | 30.003s | 0.00% (N=15), 0.00% (N=20) |
 
 ### Edge cost model ablation
 
-| Configuration | N=100 dist (km) | vs. distance-only |
+Note: distances in composite-weight minutes, OR-Tools CVRP, N=100. The distance-only
+configuration uses raw metres as edge weights (equivalent to speed=1 km/h everywhere),
+producing routes optimised for shortest physical distance rather than travel time —
+a materially different and worse objective for urban delivery.
+
+| Configuration | N=100 dist | vs. distance-only |
 |---|---|---|
-| Distance-only (no type/surface) | — | baseline |
-| Speed-by-class only | — | — |
-| Surface penalty only | — | — |
-| Full composite model | — | — |
+| Distance-only (no type/surface) | 12388.8 | baseline |
+| Speed-by-class only | 353.5 | -97.1% |
+| Full composite model | 353.5 | -97.1% |
+| Surface penalty only | — | not benchmarked separately |
 
 ### RL feedback simulation (thesis Chapter 6)
 
+Coupling coefficient: **8065** regret units per unit failure rate · Optimal λ: **0.2**
+
 | Routing quality | Simulated failure rate | LinUCB regret @ T=5000 |
 |---|---|---|
-| Naive routing | — | — |
-| Clarke-Wright | — | — |
-| OR-Tools CVRPTW | — | — |
+| Naive routing | 0.5432 | 7010.3 |
+| Clarke-Wright | 0.1294 | 4594.9 |
+| OR-Tools CVRPTW | 0.0500 | 2493.2 |
 
----
+```
 
 ## Repository Structure
 
